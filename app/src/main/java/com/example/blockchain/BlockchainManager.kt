@@ -106,11 +106,12 @@ class BlockchainManager(private val rpcUrl: String) {
                 DefaultBlockParameterName.LATEST
             ).send()
 
+            if (response.hasError() || response.value == null) return@withContext 0.0
+
             val results = FunctionReturnDecoder.decode(response.value, function.outputParameters)
             if (results.isNotEmpty()) {
                 val balance = results[0].value as BigInteger
-                // USDT usually has 6 decimals on many chains, but BEP20 USDT has 18 or 6? 
-                // BSC USDT has 18 decimals usually. Polygon USDT has 6.
+                // USDT usually has 6 decimals on Polygon, but 18 on BSC.
                 val decimals = if (tokenAddress.lowercase() == "0xc2132d05d31c914a87c6611c10748aeb04b58e8f") 6 else 18
                 balance.toBigDecimal().divide(BigDecimal.TEN.pow(decimals)).toDouble()
             } else {
@@ -129,6 +130,7 @@ class BlockchainManager(private val rpcUrl: String) {
         amountIn: BigInteger = BigInteger.TEN.pow(18)
     ): Double = withContext(Dispatchers.IO) {
         try {
+            // Uniswap V3 Quoter Address on Polygon
             val quoterAddress = "0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6"
             
             val function = org.web3j.abi.datatypes.Function(
@@ -142,6 +144,8 @@ class BlockchainManager(private val rpcUrl: String) {
                 Transaction.createEthCallTransaction(null, quoterAddress, encodedFunction),
                 DefaultBlockParameterName.LATEST
             ).send()
+
+            if (response.hasError() || response.value == null) return@withContext 0.0
 
             val results = FunctionReturnDecoder.decode(response.value, function.outputParameters)
             if (results.isNotEmpty()) {
