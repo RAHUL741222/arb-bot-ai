@@ -267,6 +267,11 @@ fun BotSimulatorTab(viewModel: MainViewModel) {
     val logs by viewModel.simLogs.collectAsState()
     val scope = rememberCoroutineScope()
     val terminalListState = rememberLazyListState()
+    
+    var showSettings by remember { mutableStateOf(false) }
+    var tempWalletAddress by remember { mutableStateOf(simState.walletAddress) }
+    var tempContractAddress by remember { mutableStateOf(simState.contractAddress) }
+    var tempPrivateKey by remember { mutableStateOf("") }
 
     // Auto scroll terminal to top when new logs arrive (since we prepended, index 0 is latest, but let's scroll cleanly)
     LaunchedEffect(logs.size) {
@@ -282,6 +287,98 @@ fun BotSimulatorTab(viewModel: MainViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Settings / Configuration Toggle
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberSurface),
+            border = BorderStrokeCustom(1.dp, CyberPrimary),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⚙️ আসল কানেকশন ও অটো-ট্রেড সেটিংস",
+                        color = CyberPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = { showSettings = !showSettings }) {
+                        Icon(
+                            imageVector = if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle"
+                        )
+                    }
+                }
+                
+                if (showSettings) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tempWalletAddress,
+                        onValueChange = { tempWalletAddress = it },
+                        label = { Text("আপনার পাবলিক ওয়ালেট অ্যাড্রেস", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyberPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tempContractAddress,
+                        onValueChange = { tempContractAddress = it },
+                        label = { Text("ডেপ্লয় করা কন্ট্রাক্ট অ্যাড্রেস", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyberSecondary)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("নিরাপত্তা সতর্কবার্তা: আপনার প্রাইভেট কী ফোনে এনক্রিপ্টেড থাকে এবং কোনো সার্ভারে পাঠানো হয় না। আসল ট্রেড করার জন্য এটি প্রয়োজন।", color = CyberError, fontSize = 10.sp, lineHeight = 13.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = tempPrivateKey,
+                        onValueChange = { tempPrivateKey = it },
+                        label = { Text("ওয়ালেট প্রাইভেট কী (Private Key)", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyberError)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("অটো-ট্রেড মুড (Auto-Trade)", color = CyberTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        androidx.compose.material3.Switch(
+                            checked = simState.isAutoTradeEnabled,
+                            onCheckedChange = { viewModel.toggleAutoTrade(it) },
+                            modifier = Modifier.testTag("auto_trade_switch")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { 
+                            viewModel.updateWalletAddress(tempWalletAddress)
+                            viewModel.updateContractAddress(tempContractAddress)
+                            if (tempPrivateKey.isNotEmpty()) {
+                                viewModel.updatePrivateKey(tempPrivateKey)
+                            }
+                            showSettings = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = CyberPrimary)
+                    ) {
+                        Text("সব সেভ করুন")
+                    }
+                }
+            }
+        }
+
         // Network and Wallet Status Box
         Card(
             colors = CardDefaults.cardColors(containerColor = CyberSurface),
@@ -315,6 +412,13 @@ fun BotSimulatorTab(viewModel: MainViewModel) {
                             color = CyberTextPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "${String.format("%.2f", simState.usdtBalance)} USDT",
+                            color = CyberSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
                     }

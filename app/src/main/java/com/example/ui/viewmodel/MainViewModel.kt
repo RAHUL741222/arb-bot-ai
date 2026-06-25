@@ -74,6 +74,11 @@ class MainViewModel : ViewModel() {
         _chatInput.value = text
     }
 
+    fun updateCalcInputs(transform: (CalculatorInputs) -> CalculatorInputs) {
+        _calcInputs.update(transform)
+        calculateArbitrage()
+    }
+
     fun sendChatMessage(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
@@ -118,9 +123,24 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun updateCalcInputs(updater: (CalculatorInputs) -> CalculatorInputs) {
-        _calcInputs.update(updater)
-        calculateArbitrage()
+    fun updateRpcUrl(url: String) {
+        simulator.setRpcUrl(url)
+    }
+
+    fun updateWalletAddress(address: String) {
+        simulator.updateWalletAddress(address)
+    }
+
+    fun updateContractAddress(address: String) {
+        simulator.updateContractAddress(address)
+    }
+
+    fun updatePrivateKey(key: String) {
+        simulator.updatePrivateKey(key)
+    }
+
+    fun toggleAutoTrade(enabled: Boolean) {
+        simulator.toggleAutoTrade(enabled)
     }
 
     private fun calculateArbitrage() {
