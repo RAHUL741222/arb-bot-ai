@@ -1,136 +1,161 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.19;
 
-import "https://github.com/aave/aave-v3-core/blob/master/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
-import "https://github.com/aave/aave-v3-core/blob/master/contracts/interfaces/IPoolAddressesProvider.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanReceiver.sol";
+import "@aave/core-v3/contracts/interfaces/IPool.sol";
 
-// Uniswap V3 Router Interface
-interface ISwapRouter {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
-}
+/**
+ * @title FlashLoanArbitrage
+ * @dev Implements a secure flash loan arbitrage bot using Aave V3 and Uniswap V3.
+ */
+contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
+    IPool public immutable POOL;
+    ISwapRouter public immutable SWAP_ROUTER;
 
-// QuickSwap/Uniswap V2 Router Interface
-interface IUniswapV2Router {
-    function swapExactTokensForTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external returns (uint[] memory amounts);
-}
+    uint256 public constant SLIPPAGE_BPS = 500; // 5% slippage tolerance
+    uint256 public constant FEE_BPS = 900; // 0.09% Aave flash loan fee
 
-contract FlashLoanArbitrage is FlashLoanSimpleReceiverBase, ReentrancyGuard {
-    address public immutable owner;
+    event ArbitrageExecuted(address token, uint256 profit, uint256 timestamp);
+    event ArbitrageFailed(string reason);
 
-    // Polygon Mainnet Addresses
-    ISwapRouter public immutable uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
-    IUniswapV2Router public immutable quickswapRouter = IUniswapV2Router(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff);
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call");
-        _;
-    }
-
-    constructor(address _addressProvider) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(_addressProvider)) {
-        owner = msg.sender;
-    }
-
-    function requestFlashLoan(address _token, uint256 _amount) public onlyOwner nonReentrant {
-        POOL.flashLoanSimple(address(this), _token, _amount, "", 0);
+    constructor(address _pool, address _swapRouter) {
+        POOL = IPool(_pool);
+        SWAP_ROUTER = ISwapRouter(_swapRouter);
     }
 
     /**
-     * @dev This function is called after your contract has received the flash loaned amount
+     * @dev Main entry point for the flash loan. Only callable by owner.
+     */
+    function requestFlashLoan(
+        address _token,
+        uint256 _amount,
+        address _tokenToBuy,
+        uint256 _minProfit
+    ) external onlyOwner nonReentrant {
+        bytes memory params = abi.encode(_tokenToBuy, _minProfit);
+
+        address[] memory assets = new address[](1);
+        assets[0] = _token;
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = _amount;
+
+        uint256[] memory interestRateModes = new uint256[](1);
+        interestRateModes[0] = 0; // 0 = no debt, 1 = stable, 2 = variable
+
+        POOL.flashLoan(
+            address(this),
+            assets,
+            amounts,
+            interestRateModes,
+            address(this),
+            params,
+            0
+        );
+    }
+
+    /**
+     * @dev Aave V3 callback function.
      */
     function executeOperation(
-        address asset,
-        uint256 amount,
-        uint256 premium,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
         address initiator,
-        bytes calldata
+        bytes calldata params
     ) external override nonReentrant returns (bool) {
-        // 1. Access Control: Only Aave Pool can call this
-        require(msg.sender == address(POOL), "Only Pool can execute");
+        // Only Aave Pool can call this
+        require(msg.sender == address(POOL), "Invalid caller");
         require(initiator == address(this), "External flashloan not allowed");
 
-        address wmatic = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
+        // Decode parameters
+        (address tokenToBuy, uint256 minProfit) = abi.decode(params, (address, uint256));
 
-        // 2. Approve Router
-        IERC20(asset).approve(address(uniswapRouter), amount);
+        address asset = assets[0];
+        uint256 amount = amounts[0];
+        uint256 premium = premiums[0];
 
-        // 3. Swap on Uniswap V3 (Buy WMATIC)
-        // Note: For production, amountOutMinimum should be calculated based on current price + slippage
+        try this._performTrade(asset, amount, tokenToBuy) {
+            uint256 currentBalance = IERC20(asset).balanceOf(address(this));
+            uint256 amountOwed = amount + premium;
+
+            require(currentBalance >= amountOwed, "Trade did not cover loan");
+            uint256 profit = currentBalance - amountOwed;
+            require(profit >= minProfit, "Profit too low");
+
+            // Repay loan
+            IERC20(asset).approve(address(POOL), amountOwed);
+
+            emit ArbitrageExecuted(asset, profit, block.timestamp);
+            return true;
+        } catch {
+            emit ArbitrageFailed("Arbitrage execution failed");
+            revert("Arbitrage failed");
+        }
+    }
+
+    /**
+     * @dev Internal function to handle the actual arbitrage swaps.
+     */
+    function _performTrade(
+        address _tokenIn,
+        uint256 _amountIn,
+        address _tokenOut
+    ) external {
+        require(msg.sender == address(this), "Internal call only");
+
+        // Step 1: Swap TokenIn for TokenOut (e.g., USDT -> WMATIC)
+        uint256 received = _swap(_tokenIn, _tokenOut, _amountIn, 0); // minOut set to 0 for initial swap
+
+        // Step 2: Swap TokenOut back for TokenIn (e.g., WMATIC -> USDT)
+        _swap(_tokenOut, _tokenIn, received, _amountIn); // Require at least original amount back
+    }
+
+    /**
+     * @dev Internal swap helper using Uniswap V3.
+     */
+    function _swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMinimum
+    ) internal returns (uint256 amountOut) {
+        IERC20(tokenIn).approve(address(SWAP_ROUTER), amountIn);
+
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: asset,
-            tokenOut: wmatic,
-            fee: 3000,
+            tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            fee: 3000, // 0.3% pool fee
             recipient: address(this),
-            deadline: block.timestamp,
-            amountIn: amount,
-            amountOutMinimum: 0, // WARNING: Should be set for slippage protection
+            deadline: block.timestamp + 300,
+            amountIn: amountIn,
+            amountOutMinimum: amountOutMinimum,
             sqrtPriceLimitX96: 0
         });
 
-        uint256 amountReceived;
-        try uniswapRouter.exactInputSingle(params) returns (uint256 _received) {
-            amountReceived = _received;
-        } catch {
-            revert("Swap on Uniswap failed");
-        }
-
-        // 4. Swap back on QuickSwap (Sell WMATIC for original asset)
-        IERC20(wmatic).approve(address(quickswapRouter), amountReceived);
-
-        address[] memory path = new address[](2);
-        path[0] = wmatic;
-        path[1] = asset;
-
-        try quickswapRouter.swapExactTokensForTokens(
-            amountReceived,
-            0, // WARNING: Should be set for slippage protection
-            path,
-            address(this),
-            block.timestamp
-        ) {
-            // Success
-        } catch {
-            revert("Swap on QuickSwap failed");
-        }
-
-        // 5. Repay Loan + Premium
-        uint256 amountToRepay = amount + premium;
-        uint256 currentBalance = IERC20(asset).balanceOf(address(this));
-        require(currentBalance >= amountToRepay, "Insufficient balance to repay loan");
-
-        IERC20(asset).approve(address(POOL), amountToRepay);
-
-        return true;
+        amountOut = SWAP_ROUTER.exactInputSingle(params);
     }
 
+    /**
+     * @dev Withdraw ERC20 tokens. Only owner.
+     */
     function withdraw(address _token) external onlyOwner nonReentrant {
-        IERC20 token = IERC20(_token);
-        uint256 balance = token.balanceOf(address(this));
+        uint256 balance = IERC20(_token).balanceOf(address(this));
         require(balance > 0, "Nothing to withdraw");
-        token.transfer(owner, balance);
+        IERC20(_token).transfer(owner(), balance);
     }
 
-    function withdrawPOL() external onlyOwner nonReentrant {
+    /**
+     * @dev Withdraw native currency. Only owner.
+     */
+    function withdrawNative() external onlyOwner nonReentrant {
         uint256 balance = address(this).balance;
         require(balance > 0, "Nothing to withdraw");
-        (bool success, ) = payable(owner).call{value: balance}("");
+        (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "Transfer failed");
     }
 

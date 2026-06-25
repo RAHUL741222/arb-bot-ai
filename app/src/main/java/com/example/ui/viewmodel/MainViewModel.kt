@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import com.example.domain.usecase.ArbitrageCalculator
+import java.math.BigDecimal
+import java.math.RoundingMode
+
 data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val isUser: Boolean,
@@ -42,6 +46,7 @@ class MainViewModel : ViewModel() {
     val simulator = ArbitrageSimulator()
     val simState: StateFlow<SimState> = simulator.state
     val simLogs = simulator.logs
+    private val calculator = ArbitrageCalculator()
 
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(
         listOf(
@@ -145,51 +150,44 @@ class MainViewModel : ViewModel() {
 
     private fun calculateArbitrage() {
         val inputs = _calcInputs.value
-        val loan = inputs.loanAmount.toDoubleOrNull() ?: 0.0
-        val buy = inputs.buyPrice.toDoubleOrNull() ?: 0.0
-        val sell = inputs.sellPrice.toDoubleOrNull() ?: 0.0
-        val gasGwei = inputs.gasPriceGwei.toDoubleOrNull() ?: 0.0
-        val gasLimit = inputs.gasLimit.toDoubleOrNull() ?: 0.0
+        val loan = inputs.loanAmount.toBigDecimalOrNull() ?: BigDecimal.ZERO
+        val buy = inputs.buyPrice.toBigDecimalOrNull() ?: BigDecimal.ONE
+        val sell = inputs.sellPrice.toBigDecimalOrNull() ?: BigDecimal.ZERO
+        val gasGwei = inputs.gasPriceGwei.toBigDecimalOrNull() ?: BigDecimal.ZERO
+        val gasLimit = inputs.gasLimit.toBigDecimalOrNull() ?: BigDecimal.ZERO
         
-        if (loan <= 0.0 || buy <= 0.0 || sell <= 0.0) {
+        if (loan <= BigDecimal.ZERO || buy <= BigDecimal.ZERO) {
             _calcResult.value = CalculatorResult(warningMessage = "অনুগ্রহ করে সঠিক সংখ্যা ইনপুট দিন।")
             return
         }
 
-        // 1. Gross Profit: buy tokens on Dex A, sell on Dex B
-        val tokensBought = loan / buy
-        val usdtReceived = tokensBought * sell
-        val grossProfit = usdtReceived - loan
-
-        // 2. Flash Loan Fee: Aave v3 standard is 0.09%
-        val loanFee = loan * 0.0009
-
-        // 3. Gas Cost calculation
-        // Gwei to native coin (MATIC or BNB)
+        // Gas Cost calculation
         val isPolygon = inputs.network.contains("Polygon")
-        val nativePrice = if (isPolygon) 0.58 else 580.0 // MATIC or BNB price in USD
-        val gasCostNative = (gasLimit * gasGwei * 1e-9)
-        val gasCostUSD = gasCostNative * nativePrice
+        val nativePrice = if (isPolygon) BigDecimal("0.58") else BigDecimal("580.0")
+        val gasCostNative = gasLimit.multiply(gasGwei).multiply(BigDecimal("1e-9"))
+        val gasCostUSD = gasCostNative.multiply(nativePrice)
 
-        // 4. Net Profit
-        val netProfit = grossProfit - loanFee - gasCostUSD
-        val isProfitable = netProfit > 0
+        val opportunity = calculator.calculateArbitrage(
+            pool1Price = buy,
+            pool2Price = sell,
+            amount = loan,
+            gasCost = gasCostUSD
+        )
 
         // Warning generation
         val warning = when {
-            netProfit <= 0 && grossProfit > 0 -> "আর্বিট্রেজ লাভজনক নয়! মোট লাভ ($${String.format("%.2f", grossProfit)}) ফ্ল্যাশ লোন ফি ($${String.format("%.2f", loanFee)}) এবং গ্যাস খরচের ($${String.format("%.2f", gasCostUSD)}) নিচে।"
-            netProfit <= 0 && grossProfit <= 0 -> "ট্রেড লোকসানে রয়েছে! DEX A-এর কেনা দামের চেয়ে DEX B-এর বিক্রির দাম সমান বা কম।"
-            isProfitable && loan >= 50000 && gasGwei < 120 -> "ঝুঁকি সতর্কবার্তা: বড় সাইজের লোনের জন্য গ্যাস প্রাইজ খুবই কম ($gasGwei Gwei)। এই লেনদেনটি মেমপুলে MEV স্যান্ডউইচ বটের কবলে পড়ার বা ফ্রন্টরান হওয়ার সম্ভাবনা ৯০%!"
-            isProfitable && netProfit < 1.0 -> "আর্বিট্রেজ লাভজনক হলেও নেট প্রফিট অনেক কম ($${String.format("%.2f", netProfit)})। সামান্য প্রাইজ মুভমেন্ট বা স্লিপেজ হলেই এটি লোকসানে যাবে!"
+            !opportunity.isProfitable && opportunity.profit > BigDecimal.ZERO -> "আর্বিট্রেজ লাভজনক নয়! গ্যাস ও লোন ফি লাভের চেয়ে বেশি।"
+            !opportunity.isProfitable -> "ট্রেড লোকসানে রয়েছে!"
+            opportunity.isProfitable && loan >= BigDecimal("50000") && gasGwei < BigDecimal("120") -> "ঝুঁকি সতর্কবার্তা: মেমপুলে MEV ফ্রন্টরান হওয়ার সম্ভাবনা অনেক বেশি!"
             else -> null
         }
 
         _calcResult.value = CalculatorResult(
-            grossProfit = grossProfit,
-            loanFee = loanFee,
-            gasCost = gasCostUSD,
-            netProfit = netProfit,
-            isProfitable = isProfitable,
+            grossProfit = opportunity.expectedAmountOut.subtract(loan).toDouble(),
+            loanFee = loan.multiply(BigDecimal("0.0009")).toDouble(),
+            gasCost = gasCostUSD.toDouble(),
+            netProfit = opportunity.profit.toDouble(),
+            isProfitable = opportunity.isProfitable,
             warningMessage = warning
         )
     }
