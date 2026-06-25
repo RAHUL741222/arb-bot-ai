@@ -21,9 +21,6 @@ import java.math.BigInteger
 class BlockchainManager(private val rpcUrl: String) {
     private val web3j: Web3j = Web3j.build(HttpService(rpcUrl))
 
-    /**
-     * আসল ফ্ল্যাশ লোন ট্রেড এক্সিকিউট করার মেথড
-     */
     suspend fun executeFlashLoan(
         privateKey: String,
         contractAddress: String,
@@ -34,6 +31,7 @@ class BlockchainManager(private val rpcUrl: String) {
             val credentials = Credentials.create(privateKey)
             val transactionManager = RawTransactionManager(web3j, credentials)
             
+            // Defining the function to match the smart contract: requestFlashLoan(address, uint256)
             val function = org.web3j.abi.datatypes.Function(
                 "requestFlashLoan",
                 listOf(Address(tokenAddress), Uint256(amount)),
