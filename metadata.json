@@ -1,0 +1,6 @@
+{
+  "name": "FlashArb Simulator",
+  "description": "Interactive DeFi Flash Loan Arbitrage bot and educational simulator with AI-powered search-grounded guidance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
