@@ -14,13 +14,10 @@ class ArbitrageRepositoryImpl(
     private val transactionDao: TransactionDao
 ) : ArbitrageRepository {
     
-    override suspend fun scanOpportunities(pair: TokenPair): Flow<Resource<List<Opportunity>>> = flow {
+    override suspend fun scanOpportunities(pair: TokenPair, loanAmount: BigDecimal): Flow<Resource<List<Opportunity>>> = flow {
         emit(Resource.Loading)
         try {
-            // Real price fetching from Uniswap V3
             val uniPrice = BigDecimal.valueOf(blockchainManager.getUniswapV3Price(pair.token0, pair.token1))
-            
-            // Real price fetching from QuickSwap (V2)
             val quickPrice = BigDecimal.valueOf(blockchainManager.getQuickSwapPrice(pair.token0, pair.token1))
             
             if (uniPrice <= BigDecimal.ZERO || quickPrice <= BigDecimal.ZERO) {
@@ -28,8 +25,6 @@ class ArbitrageRepositoryImpl(
                 return@flow
             }
 
-            // Arbitrage Profit Calculation
-            val loanAmount = BigDecimal("10000") // Example 10k loan
             val profit = quickPrice.subtract(uniPrice).multiply(loanAmount)
             
             if (profit > BigDecimal.TEN) {
@@ -42,23 +37,43 @@ class ArbitrageRepositoryImpl(
         }
     }
 
-    override suspend fun executeArbitrage(opportunity: Opportunity): Flow<Resource<TransactionResult>> = flow {
+    override suspend fun executeArbitrage(
+        opportunity: Opportunity,
+        privateKey: String,
+        contractAddress: String,
+        loanAmount: BigDecimal
+    ): Flow<Resource<TransactionResult>> = flow {
         emit(Resource.Loading)
         try {
-            // Real execution
-            // We need private key here, assuming it's available via some SecureKeyStorage or similar
-            // For now, using a placeholder until we integrate the secure wallet manager properly
+            // 1. Submit Transaction
+            val decimals = if (opportunity.pair.token0.lowercase().contains("c2132d")) 6 else 18
+            val amountWei = loanAmount.multiply(BigDecimal.TEN.pow(decimals)).toBigInteger()
+            
             val txHash = blockchainManager.executeFlashLoan(
-                privateKey = "YOUR_PRIVATE_KEY", // Should come from secure storage
-                contractAddress = "0x5E4943373c2198625BD441Ae0629E9E7b4FB4797",
+                privateKey = privateKey,
+                contractAddress = contractAddress,
                 tokenAddress = opportunity.pair.token0,
-                amount = BigInteger.valueOf(10000).multiply(BigInteger.TEN.pow(6)), // Example 10k USDT
+                amount = amountWei,
                 tokenToBuy = opportunity.pair.token1,
                 minProfit = opportunity.profit.toBigInteger()
             )
             
             if (txHash.startsWith("0x")) {
-                emit(Resource.Success(TransactionResult(txHash, "SUCCESS")))
+                // 2. Monitor Transaction
+                val receipt = blockchainManager.txMonitor.waitForMining(txHash)
+                val status = if (receipt.isStatusOK) "SUCCESS" else "FAILED"
+                
+                // 3. Save to local DB
+                transactionDao.insert(TransactionEntity(
+                    txHash = txHash,
+                    amountIn = loanAmount.toString(),
+                    amountOut = "", // Could be updated if we parse logs
+                    profit = opportunity.profit.toString(),
+                    timestamp = System.currentTimeMillis(),
+                    status = status
+                ))
+                
+                emit(Resource.Success(TransactionResult(txHash, status)))
             } else {
                 emit(Resource.Error(txHash))
             }

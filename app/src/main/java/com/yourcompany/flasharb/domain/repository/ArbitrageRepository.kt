@@ -15,7 +15,12 @@ data class TransactionResult(val txHash: String, val status: String)
 data class TransactionHistory(val txHash: String, val profit: String, val timestamp: Long, val status: String)
 
 interface ArbitrageRepository {
-    suspend fun scanOpportunities(pair: TokenPair): Flow<Resource<List<Opportunity>>>
-    suspend fun executeArbitrage(opportunity: Opportunity): Flow<Resource<TransactionResult>>
+    suspend fun scanOpportunities(pair: TokenPair, loanAmount: BigDecimal): Flow<Resource<List<Opportunity>>>
+    suspend fun executeArbitrage(
+        opportunity: Opportunity, 
+        privateKey: String, 
+        contractAddress: String,
+        loanAmount: BigDecimal
+    ): Flow<Resource<TransactionResult>>
     suspend fun getTransactionHistory(): Flow<List<TransactionHistory>>
 }

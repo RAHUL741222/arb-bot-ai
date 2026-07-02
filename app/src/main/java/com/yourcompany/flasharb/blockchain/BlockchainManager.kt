@@ -4,8 +4,6 @@ import android.util.Log
 import com.yourcompany.flasharb.blockchain.engine.DynamicGasOracle
 import com.yourcompany.flasharb.blockchain.engine.PolygonalRpcClient
 import com.yourcompany.flasharb.blockchain.engine.TransactionMonitor
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.web3j.abi.FunctionEncoder
 import org.web3j.abi.FunctionReturnDecoder
 import org.web3j.abi.TypeReference
@@ -23,7 +21,7 @@ import java.math.BigInteger
 class BlockchainManager(private val rpcUrls: List<String>) {
     private val rpcClient = PolygonalRpcClient(rpcUrls)
     private val gasOracle = DynamicGasOracle(rpcClient)
-    private val txMonitor = TransactionMonitor(rpcClient)
+    val txMonitor = TransactionMonitor(rpcClient)
 
     suspend fun executeFlashLoan(
         privateKey: String,
@@ -37,7 +35,6 @@ class BlockchainManager(private val rpcUrls: List<String>) {
             val credentials = Credentials.create(privateKey)
             val transactionManager = RawTransactionManager(web3j, credentials)
             
-            // requestFlashLoan(address,uint256,address,uint256)
             val function = org.web3j.abi.datatypes.Function(
                 "requestFlashLoan",
                 listOf(Address(tokenAddress), Uint256(amount), Address(tokenToBuy), Uint256(minProfit)),
@@ -164,18 +161,15 @@ class BlockchainManager(private val rpcUrls: List<String>) {
     ): Double = rpcClient.executeWithFallback { web3j ->
         try {
             val routerAddress = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"
-            
             val path = org.web3j.abi.datatypes.DynamicArray(
                 Address::class.java,
                 listOf(Address(tokenIn), Address(tokenOut))
             )
-            
             val function = org.web3j.abi.datatypes.Function(
                 "getAmountsOut",
                 listOf(Uint256(amountIn), path),
                 listOf(object : TypeReference<org.web3j.abi.datatypes.DynamicArray<Uint256>>() {})
             )
-            
             val encodedFunction = FunctionEncoder.encode(function)
             val response = web3j.ethCall(
                 Transaction.createEthCallTransaction(null, routerAddress, encodedFunction),

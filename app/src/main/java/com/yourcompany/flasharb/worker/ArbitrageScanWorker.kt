@@ -1,18 +1,17 @@
 package com.yourcompany.flasharb.worker
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.yourcompany.flasharb.domain.repository.Opportunity
 import com.yourcompany.flasharb.domain.repository.ArbitrageRepository
 import com.yourcompany.flasharb.domain.repository.TokenPair
 import com.yourcompany.flasharb.domain.repository.Resource
+import com.yourcompany.flasharb.domain.repository.Opportunity
 import kotlinx.coroutines.flow.first
-
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.os.Build
-import androidx.core.app.NotificationCompat
 
 class ArbitrageScanWorker(
     context: Context,
@@ -23,7 +22,7 @@ class ArbitrageScanWorker(
     override suspend fun doWork(): Result {
         return try {
             val pair = TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT")
-            val resource = repository.scanOpportunities(pair).first { it !is Resource.Loading }
+            val resource = repository.scanOpportunities(pair, java.math.BigDecimal("10000")).first { it !is Resource.Loading }
             
             if (resource is Resource.Success && resource.data.isNotEmpty()) {
                 sendArbitrageNotification(resource.data.first())
