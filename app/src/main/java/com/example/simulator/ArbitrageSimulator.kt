@@ -1,6 +1,6 @@
-package com.example.simulator
+package com.yourcompany.flasharb.simulator
 
-import com.example.blockchain.BlockchainManager
+import com.yourcompany.flasharb.blockchain.BlockchainManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,7 +66,7 @@ class ArbitrageSimulator {
 
     fun setRpcUrl(url: String) {
         this.rpcUrl = url
-        this.blockchainManager = BlockchainManager(url)
+        this.blockchainManager = BlockchainManager(listOf(url))
     }
 
     fun updateWalletAddress(address: String) {
@@ -105,7 +105,7 @@ class ArbitrageSimulator {
 
     private fun refreshConnection() {
         val currentRpc = if (_state.value.network.contains("Polygon")) rpcUrl else bscRpcUrl
-        blockchainManager = BlockchainManager(currentRpc)
+        blockchainManager = BlockchainManager(listOf(currentRpc))
         simScope.launch {
             updateRealBalances()
         }
@@ -125,7 +125,7 @@ class ArbitrageSimulator {
         if (_state.value.isRunning) return
         
         val currentRpc = if (_state.value.network.contains("Polygon")) rpcUrl else bscRpcUrl
-        blockchainManager = BlockchainManager(currentRpc)
+        blockchainManager = BlockchainManager(listOf(currentRpc))
 
         _state.update { it.copy(isRunning = true) }
         addLog(LogType.INFO, "বট চালু করা হচ্ছে... নেটওয়ার্ক: ${_state.value.network}")
@@ -155,7 +155,7 @@ class ArbitrageSimulator {
         try {
             if (blockchainManager == null) {
                 val currentRpc = if (_state.value.network.contains("Polygon")) rpcUrl else bscRpcUrl
-                blockchainManager = BlockchainManager(currentRpc)
+                blockchainManager = BlockchainManager(listOf(currentRpc))
             }
             
             val nativeBalance = blockchainManager?.getNativeBalance(address) ?: 0.0
@@ -277,6 +277,7 @@ class ArbitrageSimulator {
         val currentBorrow = _state.value.borrowAmountUSD
         val currentGwei = _state.value.gasPriceGwei
         val nativeGas = _state.value.nativeGasBalance
+        val wmatic = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"
         
         _state.update { it.copy(totalTrades = it.totalTrades + 1) }
         addLog(LogType.INFO, "🔥 সুযোগ পাওয়া গেছে! আর্বিট্রেজ ট্রেড শুরু হচ্ছে...")
@@ -361,7 +362,9 @@ class ArbitrageSimulator {
                     privateKey,
                     _state.value.contractAddress,
                     assetAddress,
-                    loanAmountWei
+                    loanAmountWei,
+                    wmatic, // tokenToBuy
+                    java.math.BigInteger.ZERO // minProfit
                 )
                 
                 if (txHash != null && txHash.startsWith("0x")) {

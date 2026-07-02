@@ -1,17 +1,20 @@
-package com.example.ui.viewmodel
+package com.yourcompany.flasharb.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.api.GeminiClient
-import com.example.simulator.ArbitrageSimulator
-import com.example.simulator.SimState
+import com.yourcompany.flasharb.api.GeminiClient
+import com.yourcompany.flasharb.simulator.ArbitrageSimulator
+import com.yourcompany.flasharb.simulator.SimState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-import com.example.domain.usecase.ArbitrageCalculator
+import com.yourcompany.flasharb.domain.repository.ArbitrageRepository
+import com.yourcompany.flasharb.domain.repository.TokenPair
+import com.yourcompany.flasharb.domain.repository.Resource
+import com.yourcompany.flasharb.domain.usecase.ArbitrageCalculator
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -21,7 +24,7 @@ data class ChatMessage(
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
     val searchQueries: List<String> = emptyList(),
-    val searchSources: List<GeminiClient.SearchSource> = emptyList()
+    val searchSources: List<com.yourcompany.flasharb.api.GeminiClient.SearchSource> = emptyList()
 )
 
 data class CalculatorInputs(
@@ -47,6 +50,19 @@ class MainViewModel : ViewModel() {
     val simState: StateFlow<SimState> = simulator.state
     val simLogs = simulator.logs
     private val calculator = ArbitrageCalculator()
+    
+    // Manual injection for now to keep things simple
+    private val repository: ArbitrageRepository = com.yourcompany.flasharb.data.repository.ArbitrageRepositoryImpl(
+        com.yourcompany.flasharb.blockchain.BlockchainManager(listOf("https://polygon-rpc.com")),
+        // Room DAO would go here
+        object : com.yourcompany.flasharb.data.local.TransactionDao {
+            override suspend fun insert(tx: com.yourcompany.flasharb.data.local.TransactionEntity) {}
+            override fun getAll(): kotlinx.coroutines.flow.Flow<List<com.yourcompany.flasharb.data.local.TransactionEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    )
+
+    private val _uiState = MutableStateFlow<com.yourcompany.flasharb.ui.state.ArbitrageUiState>(com.yourcompany.flasharb.ui.state.ArbitrageUiState.Idle)
+    val uiState: StateFlow<com.yourcompany.flasharb.ui.state.ArbitrageUiState> = _uiState.asStateFlow()
 
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(
         listOf(
@@ -124,6 +140,24 @@ class MainViewModel : ViewModel() {
                 _chatMessages.update { it + errorMsg }
             } finally {
                 _isChatLoading.value = false
+            }
+        }
+    }
+
+    fun startAutoScan(pair: TokenPair) {
+        viewModelScope.launch {
+            repository.scanOpportunities(pair).collect { resource ->
+                when(resource) {
+                    is Resource.Success -> {
+                        _uiState.value = com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success(resource.data, "0.0")
+                    }
+                    is Resource.Error -> {
+                        _uiState.value = com.yourcompany.flasharb.ui.state.ArbitrageUiState.Error(resource.message)
+                    }
+                    is Resource.Loading -> {
+                        _uiState.value = com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading
+                    }
+                }
             }
         }
     }

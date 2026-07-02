@@ -1,6 +1,6 @@
-package com.example.ui.state
+package com.yourcompany.flasharb.ui.state
 
-import com.example.domain.repository.Opportunity
+import com.yourcompany.flasharb.domain.repository.Opportunity
 
 sealed interface ArbitrageUiState {
     object Idle : ArbitrageUiState

@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.yourcompany.flasharb"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.flasharb.vrtxpl"
+    applicationId = "com.yourcompany.flasharb"
     minSdk = 26
     targetSdk = 36
     versionCode = 1
@@ -100,9 +100,10 @@ dependencies {
   implementation(libs.retrofit)
   implementation(libs.web3j.core)
   implementation("com.jakewharton.timber:timber:5.0.1")
-  implementation("androidx.work:work-runtime-ktx:2.10.0")
-  implementation("androidx.room:room-ktx:2.6.1")
-  "ksp"("androidx.room:room-compiler:2.6.1")
+  implementation("androidx.work:work-runtime-ktx:2.11.2")
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.room.ktx)
+  "ksp"(libs.androidx.room.compiler)
   
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

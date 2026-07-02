@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.yourcompany.flasharb.ui.screens
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -103,11 +103,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.api.GeminiClient
-import com.example.simulator.LogType
-import com.example.simulator.SimState
-import com.example.ui.viewmodel.ChatMessage
-import com.example.ui.viewmodel.MainViewModel
+import com.yourcompany.flasharb.api.GeminiClient
+import com.yourcompany.flasharb.simulator.LogType
+import com.yourcompany.flasharb.simulator.SimState
+import com.yourcompany.flasharb.ui.viewmodel.ChatMessage
+import com.yourcompany.flasharb.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
 // Custom Theme Palette (Professional Polish Theme)
@@ -698,7 +698,7 @@ fun BotSimulatorTab(viewModel: MainViewModel) {
 }
 
 @Composable
-fun TerminalLine(log: com.example.simulator.LogEntry) {
+fun TerminalLine(log: com.yourcompany.flasharb.simulator.LogEntry) {
     val color = when (log.type) {
         LogType.SCAN -> Color(0xFF607D8B)
         LogType.INFO -> CyberPrimary
@@ -1080,7 +1080,7 @@ fun RenderMessageContent(text: String, defaultColor: Color, context: Context) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_copy),
+                                painter = androidx.compose.ui.res.painterResource(id = com.yourcompany.flasharb.R.drawable.ic_copy),
                                 contentDescription = "Copy",
                                 tint = CyberSecondary,
                                 modifier = Modifier.size(14.dp)

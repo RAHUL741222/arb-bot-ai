@@ -1,4 +1,4 @@
-package com.example.data.model
+package com.yourcompany.flasharb.data.model
 
 data class NetworkConfig(
     val name: String,

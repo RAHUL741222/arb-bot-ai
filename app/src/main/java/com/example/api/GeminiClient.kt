@@ -1,7 +1,7 @@
-package com.example.api
+package com.yourcompany.flasharb.api
 
 import android.util.Log
-import com.example.BuildConfig
+import com.yourcompany.flasharb.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType

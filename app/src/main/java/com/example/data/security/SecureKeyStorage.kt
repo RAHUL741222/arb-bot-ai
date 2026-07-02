@@ -1,4 +1,4 @@
-package com.example.data.security
+package com.yourcompany.flasharb.data.security
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec

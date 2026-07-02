@@ -1,4 +1,4 @@
-package com.example.domain.usecase
+package com.yourcompany.flasharb.domain.usecase
 
 import java.math.BigDecimal
 import java.math.RoundingMode

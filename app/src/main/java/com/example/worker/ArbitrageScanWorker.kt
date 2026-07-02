@@ -1,12 +1,18 @@
-package com.example.worker
+package com.yourcompany.flasharb.worker
 
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.domain.repository.ArbitrageRepository
-import com.example.domain.repository.TokenPair
-import com.example.domain.repository.Resource
+import com.yourcompany.flasharb.domain.repository.Opportunity
+import com.yourcompany.flasharb.domain.repository.ArbitrageRepository
+import com.yourcompany.flasharb.domain.repository.TokenPair
+import com.yourcompany.flasharb.domain.repository.Resource
 import kotlinx.coroutines.flow.first
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
 
 class ArbitrageScanWorker(
     context: Context,
@@ -20,11 +26,30 @@ class ArbitrageScanWorker(
             val resource = repository.scanOpportunities(pair).first { it !is Resource.Loading }
             
             if (resource is Resource.Success && resource.data.isNotEmpty()) {
-                // Real notification logic here
+                sendArbitrageNotification(resource.data.first())
             }
             Result.success()
         } catch (e: Exception) {
             Result.retry()
         }
+    }
+
+    private fun sendArbitrageNotification(opportunity: Opportunity) {
+        val channelId = "arbitrage_scan"
+        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "Arbitrage Alerts", NotificationManager.IMPORTANCE_HIGH)
+            notificationManager.createNotificationChannel(channel)
+        }
+        
+        val notification = NotificationCompat.Builder(applicationContext, channelId)
+            .setContentTitle("Arbitrage Opportunity Found!")
+            .setContentText("Profit: $${opportunity.profit} on ${opportunity.pair.symbol}")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+            
+        notificationManager.notify(1, notification)
     }
 }

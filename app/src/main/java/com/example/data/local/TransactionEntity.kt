@@ -1,4 +1,4 @@
-package com.example.data.local
+package com.yourcompany.flasharb.data.local
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
