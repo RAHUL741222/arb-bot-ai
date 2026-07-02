@@ -20,6 +20,7 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
     uint256 public treasuryShareBps = 1000; // 10%
 
     mapping(address => bool) public whitelistedExecutors;
+    mapping(address => uint256) public nonces;
 
     event ArbitrageExecuted(address token, uint256 profit, uint256 timestamp);
     event ArbitrageFailed(string reason);
@@ -51,7 +52,8 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
         address _tokenToBuy,
         uint256 _minProfit
     ) external onlyWhitelisted nonReentrant {
-        bytes memory params = abi.encode(_tokenToBuy, _minProfit);
+        nonces[msg.sender]++;
+        bytes memory params = abi.encode(_tokenToBuy, _minProfit, nonces[msg.sender]);
 
         address[] memory assets = new address[](1);
         assets[0] = _token;
@@ -81,8 +83,9 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
         bytes calldata params
     ) external override nonReentrant returns (bool) {
         require(msg.sender == address(POOL), "Invalid caller");
+        require(initiator == address(this), "Invalid initiator");
 
-        (address tokenToBuy, uint256 minProfit) = abi.decode(params, (address, uint256));
+        (address tokenToBuy, uint256 minProfit, uint256 nonce) = abi.decode(params, (address, uint256, uint256));
 
         uint256 amountOwed = amounts[0] + premiums[0];
 

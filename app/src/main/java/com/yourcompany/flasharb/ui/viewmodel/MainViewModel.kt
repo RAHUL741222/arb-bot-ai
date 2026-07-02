@@ -40,6 +40,10 @@ data class CalculatorResult(
     val warningMessage: String? = null
 )
 
+/**
+ * @title MainViewModel
+ * @dev Presentation-layer ViewModel for managing UI state and business logic coordination.
+ */
 class MainViewModel(
     private val repository: ArbitrageRepository,
     private val securePrefs: SecurePreferenceManager

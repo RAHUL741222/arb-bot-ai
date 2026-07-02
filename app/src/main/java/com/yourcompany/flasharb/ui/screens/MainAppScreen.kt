@@ -97,7 +97,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 tonalElevation = 8.dp
             ) {
                 val tabs = listOf(
-                    NavigationTab("এক্সিকিউশন", "execution", Icons.Default.PlayArrow),
+                    NavigationTab("ড্যাশবোর্ড", "dashboard", Icons.Default.PlayArrow),
                     NavigationTab("এআই উপদেষ্টা", "ai_advisor", Icons.Default.Search),
                     NavigationTab("ক্যালকুলেটর", "calculator", Icons.Default.Info),
                     NavigationTab("লার্নিং হাব", "learning_hub", Icons.Default.Share)
