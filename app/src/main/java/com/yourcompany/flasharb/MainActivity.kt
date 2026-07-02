@@ -21,23 +21,15 @@ import androidx.room.Room
 
 import com.yourcompany.flasharb.data.pref.SecurePreferenceManager
 
+import androidx.work.ExistingPeriodicWorkPolicy
+
 class MainActivity : ComponentActivity() {
     
     private val mainViewModel: MainViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val db = Room.databaseBuilder(
-                    applicationContext,
-                    AppDatabase::class.java, "flasharb-db"
-                ).build()
-                
-                val securePrefs = SecurePreferenceManager(applicationContext)
-                
-                val repository = ArbitrageRepositoryImpl(
-                    BlockchainManager(listOf("https://polygon-rpc.com")),
-                    db.transactionDao()
-                )
-                return MainViewModel(repository, securePrefs) as T
+                val app = application as FlashArbApp
+                return MainViewModel(app.repository, app.securePrefs) as T
             }
         }
     }
@@ -46,9 +38,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // Start Background Scanner
+        // Start Background Scanner with Unique Work Policy
         val scanRequest = PeriodicWorkRequestBuilder<ArbitrageScanWorker>(15, TimeUnit.MINUTES).build()
-        WorkManager.getInstance(applicationContext).enqueue(scanRequest)
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "arbitrage_scan",
+            ExistingPeriodicWorkPolicy.KEEP,
+            scanRequest
+        )
 
         setContent {
             MyApplicationTheme {

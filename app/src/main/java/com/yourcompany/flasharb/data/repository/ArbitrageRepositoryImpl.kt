@@ -4,6 +4,7 @@ import com.yourcompany.flasharb.blockchain.BlockchainManager
 import com.yourcompany.flasharb.data.local.TransactionDao
 import com.yourcompany.flasharb.data.local.TransactionEntity
 import com.yourcompany.flasharb.domain.repository.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import java.math.BigDecimal
@@ -35,7 +36,7 @@ class ArbitrageRepositoryImpl(
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Scan failed"))
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     override suspend fun executeArbitrage(
         opportunity: Opportunity,
@@ -80,7 +81,7 @@ class ArbitrageRepositoryImpl(
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Execution failed"))
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     override suspend fun getTransactionHistory(): Flow<List<TransactionHistory>> {
         return transactionDao.getAll().map { entities ->

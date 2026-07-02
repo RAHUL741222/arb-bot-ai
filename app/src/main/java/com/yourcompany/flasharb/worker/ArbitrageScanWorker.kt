@@ -11,15 +11,18 @@ import com.yourcompany.flasharb.domain.repository.ArbitrageRepository
 import com.yourcompany.flasharb.domain.repository.TokenPair
 import com.yourcompany.flasharb.domain.repository.Resource
 import com.yourcompany.flasharb.domain.repository.Opportunity
+import com.yourcompany.flasharb.FlashArbApp
 import kotlinx.coroutines.flow.first
 
 class ArbitrageScanWorker(
     context: Context,
-    params: WorkerParameters,
-    private val repository: ArbitrageRepository
+    params: WorkerParameters
 ) : CoroutineWorker(context, params) {
     
     override suspend fun doWork(): Result {
+        val app = applicationContext as FlashArbApp
+        val repository = app.repository
+
         return try {
             val pair = TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT")
             val resource = repository.scanOpportunities(pair, java.math.BigDecimal("10000")).first { it !is Resource.Loading }
