@@ -103,6 +103,7 @@ dependencies {
   implementation("androidx.work:work-runtime-ktx:2.11.2")
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.room.ktx)
+  implementation("androidx.security:security-crypto:1.1.0-alpha06")
   "ksp"(libs.androidx.room.compiler)
   
   testImplementation(libs.androidx.compose.ui.test.junit4)

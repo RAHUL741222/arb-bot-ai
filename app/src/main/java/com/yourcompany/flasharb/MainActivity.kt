@@ -19,6 +19,8 @@ import com.yourcompany.flasharb.blockchain.BlockchainManager
 import com.yourcompany.flasharb.data.local.AppDatabase
 import androidx.room.Room
 
+import com.yourcompany.flasharb.data.pref.SecurePreferenceManager
+
 class MainActivity : ComponentActivity() {
     
     private val mainViewModel: MainViewModel by viewModels {
@@ -29,11 +31,13 @@ class MainActivity : ComponentActivity() {
                     AppDatabase::class.java, "flasharb-db"
                 ).build()
                 
+                val securePrefs = SecurePreferenceManager(applicationContext)
+                
                 val repository = ArbitrageRepositoryImpl(
                     BlockchainManager(listOf("https://polygon-rpc.com")),
                     db.transactionDao()
                 )
-                return MainViewModel(repository) as T
+                return MainViewModel(repository, securePrefs) as T
             }
         }
     }

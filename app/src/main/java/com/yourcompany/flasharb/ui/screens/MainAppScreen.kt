@@ -66,9 +66,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
+import com.yourcompany.flasharb.domain.repository.TokenPair
 import com.yourcompany.flasharb.api.GeminiClient
-import com.yourcompany.flasharb.simulator.LogType
-import com.yourcompany.flasharb.simulator.SimState
 import com.yourcompany.flasharb.ui.viewmodel.ChatMessage
 import com.yourcompany.flasharb.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -97,7 +97,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 tonalElevation = 8.dp
             ) {
                 val tabs = listOf(
-                    NavigationTab("সিমুলেটর", "bot_sim", Icons.Default.PlayArrow),
+                    NavigationTab("এক্সিকিউশন", "execution", Icons.Default.PlayArrow),
                     NavigationTab("এআই উপদেষ্টা", "ai_advisor", Icons.Default.Search),
                     NavigationTab("ক্যালকুলেটর", "calculator", Icons.Default.Info),
                     NavigationTab("লার্নিং হাব", "learning_hub", Icons.Default.Share)
@@ -127,7 +127,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
                     .weight(1f)
             ) {
                 when (selectedTab) {
-                    0 -> BotSimulatorTab(viewModel)
+                    0 -> ExecutionDashboardTab(viewModel)
                     1 -> AIAdvisorTab(viewModel)
                     2 -> CalculatorTab(viewModel)
                     3 -> LearningHubTab()
@@ -165,9 +165,116 @@ fun HeaderBar() {
 }
 
 @Composable
-fun BotSimulatorTab(viewModel: MainViewModel) {
-    // Current UI logic...
-    Text("Simulator Tab - Implementation in Progress")
+fun ExecutionDashboardTab(viewModel: MainViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    val walletAddress by viewModel.walletAddress.collectAsState()
+    val contractAddress by viewModel.contractAddress.collectAsState()
+    val privateKey by viewModel.privateKey.collectAsState()
+    
+    var showSettings by remember { mutableStateOf(false) }
+    var tempWallet by remember { mutableStateOf(walletAddress) }
+    var tempContract by remember { mutableStateOf(contractAddress) }
+    var tempKey by remember { mutableStateOf(privateKey) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Settings Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CyberSurface),
+            border = BorderStroke(1.dp, CyberPrimary),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⚙️ কনফিগারেশন", color = CyberPrimary, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { showSettings = !showSettings }) {
+                        Icon(if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, "")
+                    }
+                }
+                
+                if (showSettings) {
+                    OutlinedTextField(value = tempWallet, onValueChange = { tempWallet = it }, label = { Text("ওয়ালেট অ্যাড্রেস") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = tempContract, onValueChange = { tempContract = it }, label = { Text("কন্ট্রাক্ট অ্যাড্রেস") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tempKey, 
+                        onValueChange = { tempKey = it }, 
+                        label = { Text("প্রাইভেট কী (Keystore এ এনক্রিপ্টেড থাকবে)") }, 
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { 
+                            viewModel.saveSettings(tempWallet, tempContract, tempKey)
+                            showSettings = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("সেভ করুন")
+                    }
+                }
+            }
+        }
+
+        // Status Card
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("স্ট্যাটাস: ${if (walletAddress.isEmpty()) "ওয়ালেট সেট করা নেই" else "প্রস্তুত"}", fontWeight = FontWeight.Bold)
+                if (walletAddress.isNotEmpty()) {
+                    Text("সংযুক্ত ওয়ালেট: $walletAddress", fontSize = 12.sp)
+                }
+            }
+        }
+
+        // Execution Logic
+        Button(
+            onClick = { 
+                // Trigger real scan/execution logic
+                viewModel.startAutoScan(TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT"))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = CyberSecondary)
+        ) {
+            Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+        }
+
+        when (val state = uiState) {
+            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> CircularProgressIndicator()
+            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success -> {
+                state.opportunities.forEach { opp ->
+                    OpportunityRow(opp) { viewModel.executeOpportunity(opp) }
+                }
+            }
+            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Error -> Text("ত্রুটি: ${state.message}", color = CyberError)
+            else -> {}
+        }
+    }
+}
+
+@Composable
+fun OpportunityRow(opportunity: com.yourcompany.flasharb.domain.repository.Opportunity, onExecute: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(opportunity.pair.symbol, fontWeight = FontWeight.Bold)
+                Text("সম্ভাব্য লাভ: $${opportunity.profit}", color = CyberSecondary)
+            }
+            Button(onClick = onExecute) {
+                Text("এক্সিকিউট")
+            }
+        }
+    }
 }
 
 @Composable

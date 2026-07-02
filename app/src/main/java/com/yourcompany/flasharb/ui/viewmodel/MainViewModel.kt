@@ -8,6 +8,7 @@ import com.yourcompany.flasharb.domain.repository.Resource
 import com.yourcompany.flasharb.domain.repository.TokenPair
 import com.yourcompany.flasharb.domain.usecase.ArbitrageCalculator
 import com.yourcompany.flasharb.ui.state.ArbitrageUiState
+import com.yourcompany.flasharb.data.pref.SecurePreferenceManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
@@ -40,7 +41,8 @@ data class CalculatorResult(
 )
 
 class MainViewModel(
-    private val repository: ArbitrageRepository
+    private val repository: ArbitrageRepository,
+    private val securePrefs: SecurePreferenceManager
 ) : ViewModel() {
     private val calculator = ArbitrageCalculator()
 
@@ -69,10 +71,10 @@ class MainViewModel(
     private val _calcResult = MutableStateFlow(CalculatorResult())
     val calcResult: StateFlow<CalculatorResult> = _calcResult.asStateFlow()
 
-    // Real settings from UI (should be moved to DataStore for persistence)
-    val walletAddress = MutableStateFlow("")
-    val contractAddress = MutableStateFlow("0x5E4943373c2198625BD441Ae0629E9E7b4FB4797")
-    val privateKey = MutableStateFlow("")
+    // Real settings from UI, loaded from secure prefs
+    val walletAddress = MutableStateFlow(securePrefs.getWalletAddress() ?: "")
+    val contractAddress = MutableStateFlow(securePrefs.getContractAddress() ?: "0x5E4943373c2198625BD441Ae0629E9E7b4FB4797")
+    val privateKey = MutableStateFlow(securePrefs.getPrivateKey() ?: "")
 
     init {
         calculateArbitrage()
@@ -85,6 +87,16 @@ class MainViewModel(
     fun updateCalcInputs(transform: (CalculatorInputs) -> CalculatorInputs) {
         _calcInputs.update(transform)
         calculateArbitrage()
+    }
+
+    fun saveSettings(address: String, contract: String, key: String) {
+        walletAddress.value = address
+        contractAddress.value = contract
+        privateKey.value = key
+        
+        securePrefs.saveWalletAddress(address)
+        securePrefs.saveContractAddress(contract)
+        securePrefs.savePrivateKey(key)
     }
 
     fun startAutoScan(pair: TokenPair) {
@@ -117,7 +129,6 @@ class MainViewModel(
                 loanAmount = loan
             ).collect { resource ->
                 if (resource is Resource.Success) {
-                    // Success handling
                     _uiState.value = ArbitrageUiState.Idle
                 } else if (resource is Resource.Error) {
                     _uiState.value = ArbitrageUiState.Error(resource.message)
