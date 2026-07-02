@@ -4,38 +4,53 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanReceiver.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 
-/**
- * @title FlashLoanArbitrage
- * @dev Implements a secure flash loan arbitrage bot using Aave V3 and Uniswap V3.
- */
 contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
+    using SafeERC20 for IERC20;
+
     IPool public immutable POOL;
     ISwapRouter public immutable SWAP_ROUTER;
 
-    uint256 public constant SLIPPAGE_BPS = 500; // 5% slippage tolerance
-    uint256 public constant FEE_BPS = 900; // 0.09% Aave flash loan fee
+    uint256 public maxSlippageBps = 500; // 5% dynamic
+    address public treasuryWallet;
+    uint256 public treasuryShareBps = 1000; // 10%
+
+    mapping(address => bool) public whitelistedExecutors;
 
     event ArbitrageExecuted(address token, uint256 profit, uint256 timestamp);
     event ArbitrageFailed(string reason);
 
-    constructor(address _pool, address _swapRouter) {
-        POOL = IPool(_pool);
-        SWAP_ROUTER = ISwapRouter(_swapRouter);
+    modifier onlyWhitelisted() {
+        require(whitelistedExecutors[msg.sender] || msg.sender == owner(), "Not whitelisted");
+        _;
     }
 
-    /**
-     * @dev Main entry point for the flash loan. Only callable by owner.
-     */
+    constructor(address _pool, address _swapRouter, address _treasury) {
+        POOL = IPool(_pool);
+        SWAP_ROUTER = ISwapRouter(_swapRouter);
+        treasuryWallet = _treasury;
+        whitelistedExecutors[msg.sender] = true;
+    }
+
+    function setWhitelistedExecutor(address _executor, bool _status) external onlyOwner {
+        whitelistedExecutors[_executor] = _status;
+    }
+
+    function setMaxSlippage(uint256 _bps) external onlyOwner {
+        require(_bps <= 2000, "Slippage too high");
+        maxSlippageBps = _bps;
+    }
+
     function requestFlashLoan(
         address _token,
         uint256 _amount,
         address _tokenToBuy,
         uint256 _minProfit
-    ) external onlyOwner nonReentrant {
+    ) external onlyWhitelisted nonReentrant {
         bytes memory params = abi.encode(_tokenToBuy, _minProfit);
 
         address[] memory assets = new address[](1);
@@ -45,7 +60,7 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
         amounts[0] = _amount;
 
         uint256[] memory interestRateModes = new uint256[](1);
-        interestRateModes[0] = 0; // 0 = no debt, 1 = stable, 2 = variable
+        interestRateModes[0] = 0;
 
         POOL.flashLoan(
             address(this),
@@ -58,9 +73,6 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
         );
     }
 
-    /**
-     * @dev Aave V3 callback function.
-     */
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -68,68 +80,60 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
         address initiator,
         bytes calldata params
     ) external override nonReentrant returns (bool) {
-        // Only Aave Pool can call this
         require(msg.sender == address(POOL), "Invalid caller");
-        require(initiator == address(this), "External flashloan not allowed");
 
-        // Decode parameters
         (address tokenToBuy, uint256 minProfit) = abi.decode(params, (address, uint256));
 
-        address asset = assets[0];
-        uint256 amount = amounts[0];
-        uint256 premium = premiums[0];
+        uint256 amountOwed = amounts[0] + premiums[0];
 
-        try this._performTrade(asset, amount, tokenToBuy) {
-            uint256 currentBalance = IERC20(asset).balanceOf(address(this));
-            uint256 amountOwed = amount + premium;
+        try this._executeArbitrage(assets[0], tokenToBuy, amounts[0]) returns (uint256 amountOut) {
+            require(amountOut >= amountOwed + minProfit, "Profit too low");
 
-            require(currentBalance >= amountOwed, "Trade did not cover loan");
-            uint256 profit = currentBalance - amountOwed;
-            require(profit >= minProfit, "Profit too low");
+            uint256 profit = amountOut - amountOwed;
 
-            // Repay loan
-            IERC20(asset).approve(address(POOL), amountOwed);
+            // Profit sharing
+            uint256 treasuryAmount = (profit * treasuryShareBps) / 10000;
+            if (treasuryAmount > 0) {
+                IERC20(assets[0]).safeTransfer(treasuryWallet, treasuryAmount);
+            }
 
-            emit ArbitrageExecuted(asset, profit, block.timestamp);
+            IERC20(assets[0]).approve(address(POOL), amountOwed);
+            emit ArbitrageExecuted(assets[0], profit - treasuryAmount, block.timestamp);
             return true;
         } catch {
             emit ArbitrageFailed("Arbitrage execution failed");
-            revert("Arbitrage failed");
+            revert("Execution reverted");
         }
     }
 
-    /**
-     * @dev Internal function to handle the actual arbitrage swaps.
-     */
-    function _performTrade(
-        address _tokenIn,
-        uint256 _amountIn,
-        address _tokenOut
-    ) external {
-        require(msg.sender == address(this), "Internal call only");
+    function _executeArbitrage(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external returns (uint256) {
+        require(msg.sender == address(this), "Internal only");
 
-        // Step 1: Swap TokenIn for TokenOut (e.g., USDT -> WMATIC)
-        uint256 received = _swap(_tokenIn, _tokenOut, _amountIn, 0); // minOut set to 0 for initial swap
+        // 1. Swap In -> Out
+        uint256 midAmount = _swap(tokenIn, tokenOut, amountIn, 0);
 
-        // Step 2: Swap TokenOut back for TokenIn (e.g., WMATIC -> USDT)
-        _swap(_tokenOut, _tokenIn, received, _amountIn); // Require at least original amount back
+        // 2. Swap Out -> In
+        uint256 finalAmount = _swap(tokenOut, tokenIn, midAmount, (amountIn * (10000 - maxSlippageBps)) / 10000);
+
+        return finalAmount;
     }
 
-    /**
-     * @dev Internal swap helper using Uniswap V3.
-     */
     function _swap(
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
         uint256 amountOutMinimum
     ) internal returns (uint256 amountOut) {
-        IERC20(tokenIn).approve(address(SWAP_ROUTER), amountIn);
+        IERC20(tokenIn).safeApprove(address(SWAP_ROUTER), amountIn);
 
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: tokenIn,
             tokenOut: tokenOut,
-            fee: 3000, // 0.3% pool fee
+            fee: 3000,
             recipient: address(this),
             deadline: block.timestamp + 300,
             amountIn: amountIn,
@@ -140,23 +144,9 @@ contract FlashLoanArbitrage is ReentrancyGuard, Ownable, IFlashLoanReceiver {
         amountOut = SWAP_ROUTER.exactInputSingle(params);
     }
 
-    /**
-     * @dev Withdraw ERC20 tokens. Only owner.
-     */
     function withdraw(address _token) external onlyOwner nonReentrant {
         uint256 balance = IERC20(_token).balanceOf(address(this));
-        require(balance > 0, "Nothing to withdraw");
-        IERC20(_token).transfer(owner(), balance);
-    }
-
-    /**
-     * @dev Withdraw native currency. Only owner.
-     */
-    function withdrawNative() external onlyOwner nonReentrant {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "Nothing to withdraw");
-        (bool success, ) = payable(owner()).call{value: balance}("");
-        require(success, "Transfer failed");
+        IERC20(_token).safeTransfer(owner(), balance);
     }
 
     receive() external payable {}

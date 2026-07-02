@@ -17,7 +17,6 @@ import org.web3j.protocol.http.HttpService
 import org.web3j.tx.RawTransactionManager
 import java.math.BigDecimal
 import java.math.BigInteger
-
 class BlockchainManager(private val rpcUrl: String) {
     private val web3j: Web3j = Web3j.build(HttpService(rpcUrl))
 

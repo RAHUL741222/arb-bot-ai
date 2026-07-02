@@ -100,6 +100,9 @@ dependencies {
   implementation(libs.retrofit)
   implementation(libs.web3j.core)
   implementation("com.jakewharton.timber:timber:5.0.1")
+  implementation("androidx.work:work-runtime-ktx:2.10.0")
+  implementation("androidx.room:room-ktx:2.6.1")
+  "ksp"("androidx.room:room-compiler:2.6.1")
   
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
