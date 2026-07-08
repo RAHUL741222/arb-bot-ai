@@ -306,3 +306,8 @@ fun CalculatorTab(viewModel: MainViewModel) {
 fun LearningHubTab() {
     Text("Learning Hub Tab")
 }
+
+@Composable
+fun Greeting(name: String) {
+    Text(text = "Hello $name!")
+}
