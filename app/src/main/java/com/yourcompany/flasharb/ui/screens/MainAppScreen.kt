@@ -154,7 +154,7 @@ fun HeaderBar() {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "FlashArb DeFi Bot",
+                text = "ai tread bot 2.00.1",
                 color = CyberTextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
