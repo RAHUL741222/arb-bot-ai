@@ -14,14 +14,14 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [36])
+@Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [36], application = android.app.Application::class)
 class GreetingScreenshotTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
   @Test
   fun greeting_screenshot() {
-    composeTestRule.setContent { MyApplicationTheme { com.yourcompany.flasharb.ui.screens.Greeting("Robolectric") } }
+    composeTestRule.setContent { MyApplicationTheme { com.yourcompany.flasharb.ui.screens.HeaderBar() } }
 
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
   }
