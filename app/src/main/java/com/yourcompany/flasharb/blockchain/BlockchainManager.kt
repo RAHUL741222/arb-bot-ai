@@ -9,6 +9,8 @@ import org.web3j.abi.FunctionReturnDecoder
 import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Address
 import org.web3j.abi.datatypes.generated.Uint24
+import org.web3j.abi.datatypes.generated.Uint32
+import org.web3j.abi.datatypes.generated.Uint160
 import org.web3j.abi.datatypes.generated.Uint256
 import org.web3j.crypto.Credentials
 import org.web3j.protocol.Web3j
@@ -22,6 +24,33 @@ class BlockchainManager(private val rpcUrls: List<String>) {
     private val rpcClient = PolygonalRpcClient(rpcUrls)
     private val gasOracle = DynamicGasOracle(rpcClient)
     val txMonitor = TransactionMonitor(rpcClient)
+
+    private suspend fun getTokenDecimals(web3j: Web3j, tokenAddress: String): Int {
+        return try {
+            val function = org.web3j.abi.datatypes.Function(
+                "decimals",
+                emptyList(),
+                listOf(object : TypeReference<Uint32>() {})
+            )
+            val encodedFunction = FunctionEncoder.encode(function)
+            val response = web3j.ethCall(
+                Transaction.createEthCallTransaction(null, tokenAddress, encodedFunction),
+                DefaultBlockParameterName.LATEST
+            ).send()
+
+            if (response.hasError() || response.value == null) return 18
+
+            val results = FunctionReturnDecoder.decode(response.value, function.outputParameters)
+            if (results.isNotEmpty()) {
+                (results[0].value as BigInteger).toInt()
+            } else {
+                18
+            }
+        } catch (e: Exception) {
+            Log.e("BlockchainManager", "Error fetching decimals for $tokenAddress", e)
+            18
+        }
+    }
 
     suspend fun executeFlashLoan(
         privateKey: String,
@@ -107,7 +136,7 @@ class BlockchainManager(private val rpcUrls: List<String>) {
             val results = FunctionReturnDecoder.decode(response.value, function.outputParameters)
             if (results.isNotEmpty()) {
                 val balance = results[0].value as BigInteger
-                val decimals = if (tokenAddress.lowercase() == "0xc2132d05d31c914a87c6611c10748aeb04b58e8f") 6 else 18
+                val decimals = getTokenDecimals(web3j, tokenAddress)
                 balance.toBigDecimal().divide(BigDecimal.TEN.pow(decimals)).toDouble()
             } else {
                 0.0
@@ -129,7 +158,7 @@ class BlockchainManager(private val rpcUrls: List<String>) {
             
             val function = org.web3j.abi.datatypes.Function(
                 "quoteExactInputSingle",
-                listOf(Address(tokenIn), Address(tokenOut), Uint24(fee.toLong()), Uint256(amountIn), Uint256(0L)),
+                listOf(Address(tokenIn), Address(tokenOut), Uint24(fee.toLong()), Uint256(amountIn), Uint160(BigInteger.ZERO)),
                 listOf(object : TypeReference<Uint256>() {})
             )
             
@@ -144,7 +173,8 @@ class BlockchainManager(private val rpcUrls: List<String>) {
             val results = FunctionReturnDecoder.decode(response.value, function.outputParameters)
             if (results.isNotEmpty()) {
                 val amountOut = results[0].value as BigInteger
-                amountOut.toBigDecimal().divide(BigDecimal.TEN.pow(18)).toDouble()
+                val decimals = getTokenDecimals(web3j, tokenOut)
+                amountOut.toBigDecimal().divide(BigDecimal.TEN.pow(decimals)).toDouble()
             } else {
                 0.0
             }
@@ -181,7 +211,8 @@ class BlockchainManager(private val rpcUrls: List<String>) {
             val results = FunctionReturnDecoder.decode(response.value, function.outputParameters)
             if (results.isNotEmpty()) {
                 val amounts = results[0].value as List<Uint256>
-                amounts.last().value.toBigDecimal().divide(BigDecimal.TEN.pow(18)).toDouble()
+                val decimals = getTokenDecimals(web3j, tokenOut)
+                amounts.last().value.toBigDecimal().divide(BigDecimal.TEN.pow(decimals)).toDouble()
             } else {
                 0.0
             }

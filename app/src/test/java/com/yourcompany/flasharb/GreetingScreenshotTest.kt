@@ -3,6 +3,7 @@ package com.yourcompany.flasharb
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.yourcompany.flasharb.ui.theme.MyApplicationTheme
+import com.yourcompany.flasharb.ui.screens.Greeting
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule

@@ -154,7 +154,7 @@ fun HeaderBar() {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "FlashArb DeFi Bot",
+                text = "ai tread bot 2.00.1",
                 color = CyberTextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -290,4 +290,9 @@ fun CalculatorTab(viewModel: MainViewModel) {
 @Composable
 fun LearningHubTab() {
     Text("Learning Hub Tab")
+}
+
+@Composable
+fun Greeting(name: String) {
+    Text(text = "Hello $name!")
 }
