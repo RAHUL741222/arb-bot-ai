@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import com.yourcompany.flasharb.domain.repository.TokenPair
 import com.yourcompany.flasharb.api.GeminiClient
+import com.yourcompany.flasharb.ui.state.ArbitrageUiState
 import com.yourcompany.flasharb.ui.viewmodel.ChatMessage
 import com.yourcompany.flasharb.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -197,7 +198,10 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 ) {
                     Text("⚙️ কনফিগারেশন", color = CyberPrimary, fontWeight = FontWeight.Bold)
                     IconButton(onClick = { showSettings = !showSettings }) {
-                        Icon(if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, "")
+                        Icon(
+                            imageVector = if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "কনফিগারেশন টগল করুন"
+                        )
                     }
                 }
                 
@@ -244,19 +248,29 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 viewModel.startAutoScan(TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT"))
             },
             modifier = Modifier.fillMaxWidth(),
+            enabled = uiState !is ArbitrageUiState.Loading,
             colors = ButtonDefaults.buttonColors(containerColor = CyberSecondary)
         ) {
-            Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+            if (uiState is ArbitrageUiState.Loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = CyberSurface,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("স্ক্যান করা হচ্ছে...")
+            } else {
+                Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+            }
         }
 
         when (val state = uiState) {
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> CircularProgressIndicator()
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success -> {
+            is ArbitrageUiState.Success -> {
                 state.opportunities.forEach { opp ->
                     OpportunityRow(opp) { viewModel.executeOpportunity(opp) }
                 }
             }
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Error -> Text("ত্রুটি: ${state.message}", color = CyberError)
+            is ArbitrageUiState.Error -> Text("ত্রুটি: ${state.message}", color = CyberError)
             else -> {}
         }
     }
