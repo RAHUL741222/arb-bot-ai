@@ -197,7 +197,10 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 ) {
                     Text("⚙️ কনফিগারেশন", color = CyberPrimary, fontWeight = FontWeight.Bold)
                     IconButton(onClick = { showSettings = !showSettings }) {
-                        Icon(if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, "")
+                        Icon(
+                            imageVector = if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (showSettings) "কনফিগারেশন লুকান" else "কনফিগারেশন দেখান"
+                        )
                     }
                 }
                 
@@ -244,13 +247,22 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 viewModel.startAutoScan(TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT"))
             },
             modifier = Modifier.fillMaxWidth(),
+            enabled = uiState !is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading,
             colors = ButtonDefaults.buttonColors(containerColor = CyberSecondary)
         ) {
+            if (uiState is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = CyberSurface
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
         }
 
         when (val state = uiState) {
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> CircularProgressIndicator()
+            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> {}
             is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success -> {
                 state.opportunities.forEach { opp ->
                     OpportunityRow(opp) { viewModel.executeOpportunity(opp) }
