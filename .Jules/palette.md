@@ -1,0 +1,3 @@
+## 2025-02-12 - [DeFi Android App UX Localizations & Loading Feedback]
+**Learning:** For Android applications localized in non-English environments (such as Bengali here), all dynamic interactive states, accessibility `contentDescription` tags, and action buttons must align with the localized content. Standardizing loading feedback inside the primary action buttons using a small inline `CircularProgressIndicator` (size 20.dp, strokeWidth 2.dp) prevents redundant trigger requests and improves responsiveness.
+**Action:** Always provide localized screen-reader accessibility labels when updating arrow/toggle `IconButton`s, and integrate standardized smaller inline loaders in localized action buttons while disabling them.
