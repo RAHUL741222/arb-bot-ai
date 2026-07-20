@@ -1,0 +1,7 @@
+## 2026-07-02 - KeyStore Dependencies in Robolectric UI Screenshot Testing
+**Learning:** Robolectric screenshot tests (e.g. using Roborazzi) that render components or instantiate standard testing runners will fail with `KeyStoreException` if they trigger custom `Application` code that initializes security managers (like AndroidKeyStore) in production. Modifying production code for test detection is rejected for security reasons.
+**Action:** Apply `@Config(application = android.app.Application::class)` directly in screenshot and unit test classes to bypass custom application initialization and safely run Roborazzi tests.
+
+## 2026-07-02 - Consistent UX Loading States & Multilingual Accessibility
+**Learning:** Implementing inline loading indicators for high-frequency scan buttons must simultaneously disable the button to prevent double-triggering. Additionally, when the target audience relies on localized languages (such as Bengali for 'আর্বিট্রেজ স্ক্যান শুরু করুন'), any assistive UI labels, button states ('স্ক্যান করা হচ্ছে...'), and toggled arrow icon content descriptions ('কনফিগারেশন খুলুন' / 'কনফিগারেশন বন্ধ করুন') must remain in the same language to maintain accessibility cohesion.
+**Action:** When adding inline spinners or icon button controls, keep the loading text/descriptions in the native language of the existing UI and use `enabled = !isLoading` alongside standard size constraints (20.dp, 2.dp stroke) for the loading state.
