@@ -171,6 +171,7 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
     val contractAddress by viewModel.contractAddress.collectAsState()
     val privateKey by viewModel.privateKey.collectAsState()
     
+    val isLoading = uiState is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading
     var showSettings by remember { mutableStateOf(false) }
     var tempWallet by remember { mutableStateOf(walletAddress) }
     var tempContract by remember { mutableStateOf(contractAddress) }
@@ -197,7 +198,10 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 ) {
                     Text("⚙️ কনফিগারেশন", color = CyberPrimary, fontWeight = FontWeight.Bold)
                     IconButton(onClick = { showSettings = !showSettings }) {
-                        Icon(if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, "")
+                        Icon(
+                            imageVector = if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "কনফিগারেশন টগল করুন"
+                        )
                     }
                 }
                 
@@ -243,14 +247,23 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 // Trigger real scan/execution logic
                 viewModel.startAutoScan(TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT"))
             },
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = CyberSecondary)
         ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
         }
 
         when (val state = uiState) {
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> CircularProgressIndicator()
+            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> { /* Handled inline in the button */ }
             is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success -> {
                 state.opportunities.forEach { opp ->
                     OpportunityRow(opp) { viewModel.executeOpportunity(opp) }

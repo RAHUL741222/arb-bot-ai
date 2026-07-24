@@ -1,0 +1,3 @@
+## 2025-01-24 - Inline Loading States & Icon Button Accessibility
+**Learning:** Icon-only buttons must have descriptive `contentDescription` attributes (especially in the user's preferred language, e.g., Bengali, for this application) to ensure screen-reader accessibility. Additionally, primary action buttons must implement inline loading states with custom sized and stroke-width `CircularProgressIndicator`s to prevent redundant triggers and maintain layout integrity.
+**Action:** Always set `enabled = !isLoading` and use a `Modifier.size(20.dp)` with `strokeWidth = 2.dp` for inline button indicators in this design system.
