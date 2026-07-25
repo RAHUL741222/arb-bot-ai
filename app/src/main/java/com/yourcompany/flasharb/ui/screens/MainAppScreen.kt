@@ -170,6 +170,8 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
     val walletAddress by viewModel.walletAddress.collectAsState()
     val contractAddress by viewModel.contractAddress.collectAsState()
     val privateKey by viewModel.privateKey.collectAsState()
+    val isLoading = uiState is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading
+    val context = LocalContext.current
     
     var showSettings by remember { mutableStateOf(false) }
     var tempWallet by remember { mutableStateOf(walletAddress) }
@@ -197,7 +199,10 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 ) {
                     Text("⚙️ কনফিগারেশন", color = CyberPrimary, fontWeight = FontWeight.Bold)
                     IconButton(onClick = { showSettings = !showSettings }) {
-                        Icon(if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, "")
+                        Icon(
+                            imageVector = if (showSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (showSettings) "কনফিগারেশন বন্ধ করুন" else "কনফিগারেশন খুলুন"
+                        )
                     }
                 }
                 
@@ -218,6 +223,7 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                         onClick = { 
                             viewModel.saveSettings(tempWallet, tempContract, tempKey)
                             showSettings = false
+                            Toast.makeText(context, "কনফিগারেশন সফলভাবে সংরক্ষিত হয়েছে", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -243,14 +249,29 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
                 // Trigger real scan/execution logic
                 viewModel.startAutoScan(TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT"))
             },
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = CyberSecondary)
         ) {
-            Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("স্ক্যান করা হচ্ছে...")
+                } else {
+                    Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+                }
+            }
         }
 
         when (val state = uiState) {
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> CircularProgressIndicator()
             is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success -> {
                 state.opportunities.forEach { opp ->
                     OpportunityRow(opp) { viewModel.executeOpportunity(opp) }
