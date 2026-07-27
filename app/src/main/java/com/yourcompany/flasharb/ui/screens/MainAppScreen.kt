@@ -237,23 +237,43 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
             }
         }
 
+        val isLoading = uiState is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading
+
         // Execution Logic
         Button(
             onClick = { 
                 // Trigger real scan/execution logic
                 viewModel.startAutoScan(TokenPair("0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "WMATIC/USDT"))
             },
-            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth().testTag("scan_button"),
             colors = ButtonDefaults.buttonColors(containerColor = CyberSecondary)
         ) {
-            Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp).testTag("button_loading_indicator"),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("স্ক্যান করা হচ্ছে...")
+                } else {
+                    Text("আর্বিট্রেজ স্ক্যান শুরু করুন")
+                }
+            }
         }
 
         when (val state = uiState) {
-            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> CircularProgressIndicator()
+            is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Loading -> {
+                // Inline loading state inside action buttons provides immediate feedback and disables the button.
+            }
             is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Success -> {
                 state.opportunities.forEach { opp ->
-                    OpportunityRow(opp) { viewModel.executeOpportunity(opp) }
+                    OpportunityRow(opp, isLoading) { viewModel.executeOpportunity(opp) }
                 }
             }
             is com.yourcompany.flasharb.ui.state.ArbitrageUiState.Error -> Text("ত্রুটি: ${state.message}", color = CyberError)
@@ -263,14 +283,21 @@ fun ExecutionDashboardTab(viewModel: MainViewModel) {
 }
 
 @Composable
-fun OpportunityRow(opportunity: com.yourcompany.flasharb.domain.repository.Opportunity, onExecute: () -> Unit) {
+fun OpportunityRow(
+    opportunity: com.yourcompany.flasharb.domain.repository.Opportunity,
+    isLoading: Boolean,
+    onExecute: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(opportunity.pair.symbol, fontWeight = FontWeight.Bold)
                 Text("সম্ভাব্য লাভ: $${opportunity.profit}", color = CyberSecondary)
             }
-            Button(onClick = onExecute) {
+            Button(
+                onClick = onExecute,
+                enabled = !isLoading
+            ) {
                 Text("এক্সিকিউট")
             }
         }
